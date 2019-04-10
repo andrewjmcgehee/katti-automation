@@ -5,6 +5,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--zsh", help="install zsh completions", action="store_true")
 args = parser.parse_args()
 
+# logo shit
 print("\n********************************************************************************\n")
 print("""\
 \033[1;32m::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -17,11 +18,12 @@ print("""\
 : \033[1;34m##\033[1;32m::. \033[1;34m##\033[1;32m:::: \033[1;34m##\033[1;32m:::: \033[1;34m##\033[1;32m::::::: \033[1;34m##\033[1;32m:::::::::: \033[1;34m##\033[1;32m:::::::'\033[1;34m####\033[1;32m:
 :.::::..:::::..:::::..::::::::..:::::::::::..::::::::....:::\033[0m\n\
 """)
+
+# installer
 print("\033[1;34m=> \033[1;32mMaking katti directory in /usr/local/opt...\033[0m")
 os.system("mkdir -v /usr/local/opt/katti")
 print("\033[1;34m=> \033[1;32mMoving files to /usr/local/opt/katti...\033[0m")
 os.system("cp -v katti.py /usr/local/opt/katti")
-os.system("cp -v latex_to_text.py /usr/local/opt/katti")
 print("\033[1;34m=> \033[1;32mMaking katti shell script in /usr/local/bin...\033[0m")
 print("echo 'python3 /usr/local/opt/katti/katti.py \"$@\"' > /usr/local/bin/katti")
 os.system("echo 'python3 /usr/local/opt/katti/katti.py \"$@\"' > /usr/local/bin/katti")
@@ -32,8 +34,9 @@ os.system("mkdir -v /usr/local/etc/katti")
 print("\033[1;34m=> \033[1;32mMoving katti config files to /usr/local/etc/katti...\033[0m")
 os.system("cp -v problem_ids.json /usr/local/etc/katti")
 print("\033[1;34m=> \033[1;32mInstalling requirements...\033[0m")
-os.system("pip3 install -r requirements.txt")
+os.system("python3 -m pip install --user -r requirements.txt")
 
+# zsh completions installer
 if args.zsh:
   print("\033[1;34m=> \033[1;32mMaking ZSH completions directory in $HOME/.zsh-completions...\033[0m")
   os.system("mkdir -v $HOME/.zsh-completions")
