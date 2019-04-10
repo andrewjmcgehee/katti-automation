@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--zsh", help="install zsh completions", action="store_true")
@@ -18,6 +19,12 @@ print("""\
 : \033[1;34m##\033[1;32m::. \033[1;34m##\033[1;32m:::: \033[1;34m##\033[1;32m:::: \033[1;34m##\033[1;32m::::::: \033[1;34m##\033[1;32m:::::::::: \033[1;34m##\033[1;32m:::::::'\033[1;34m####\033[1;32m:
 :.::::..:::::..:::::..::::::::..:::::::::::..::::::::....:::\033[0m\n\
 """)
+
+# own the necessary directory
+user = os.popen("echo $USER").read().strip()
+os.system("sudo chown -R %s /usr/local/bin" % user)
+os.system("sudo chown -R %s /usr/local/etc" % user)
+os.system("sudo chown -R %s /usr/local/opt" % user)
 
 # installer
 print("\033[1;34m=> \033[1;32mMaking katti directory in /usr/local/opt...\033[0m")
@@ -45,6 +52,7 @@ if args.zsh:
   print("\033[1;34m=> \033[1;32mEnsuring $HOME/.zsh-completions is included in $fpath environment variable...\033[0m")
   print("echo 'fpath=($HOME/.zsh-completions $fpath)' >> $HOME/.zshrc")
   os.system("echo 'fpath=($HOME/.zsh-completions $fpath)' >> $HOME/.zshrc")
+  print("autoload -U compinit && compinit' >> $HOME/.zshrc")
+  os.system("echo 'autoload -U compinit && compinit' >> $HOME/.zshrc")
   print("\033[1;34m=> \033[1;32mRestarting shell session...\033[0m")
   os.system("exec zsh")
-print("\n********************************************************************************\n")
