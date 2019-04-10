@@ -3,7 +3,6 @@ from bisect import bisect
 import configparser
 from datetime import datetime
 import json
-import latex_to_text
 import multiprocessing as mp
 import os
 import random
@@ -77,15 +76,15 @@ user_conf = None
 problems_conf = None
 USER_CONF_PATH = "/usr/local/etc/katti/config.json"
 PROBLEMS_CONF_PATH = "/usr/local/etc/katti/problem_ids.json"
-ratings_update_period = None
 
 # user conf or problems conf modified
 modified = False
 
+
 """
 Gets the a problem's rating and sample inputs from kattis
 
-Params: problem_id
+Params: A string problem_id
 Returns: None
 """
 def get(problem_id):
@@ -96,24 +95,17 @@ def get(problem_id):
       extension = _suported_langs[language]
       break
     print("Language \"%s\" not suported..." % language)
-
-  # make GET call for problem description
-  description = get_problem_description(problem_id)
-
   # make GET call for problem rating
   rating = get_problem_rating(problem_id)
-
   # make GET call for samples zip file
   if verbose:
     print("Making http request: https://open.kattis.com/problems/" + problem_id + "/file/statement/samples.zip")
   r = requests.get("https://open.kattis.com/problems/" + problem_id + "/file/statement/samples.zip")
-
   # bad request
   if r.status_code != 200:
     print("URL returned non 200 status")
     print("Aborting...")
     sys.exit(0)
-
   # download and write zip file
   if verbose:
     print("Sample files found!")
@@ -122,7 +114,6 @@ def get(problem_id):
   with open("samples.zip", mode="wb") as f:
     f.write(r.content)
     f.close()
-
   # create the directory, unzip the samples, remove the zip file, create the boilerplate file
   if verbose:
     os.system("mkdir -v %s" % problem_id)
@@ -134,10 +125,7 @@ def get(problem_id):
     print("Writing boilerplate files...")
     os.chdir(problem_id)
     write_boilerplate(problem_id, extension, rating)
-    with open(problem_id + '.description', mode="w") as f:
-      f.write(description)
-      f.close()
-    show_description("full")
+    show_description()
     os.chdir("..")
   else:
     os.system("mkdir -p %s" % problem_id)
@@ -145,12 +133,16 @@ def get(problem_id):
     os.system("rm samples.zip")
     os.chdir(problem_id)
     write_boilerplate(problem_id, extension, rating)
-    with open(problem_id + '.description', mode="w") as f:
-      f.write(description)
-      f.close()
-    show_description("full")
+    show_description()
     os.chdir("..")
 
+
+"""
+Helper function to get the current rating of problem from Kattis
+
+Params: A string problem_id
+Returns: A string representing the problem's rating
+"""
 def get_problem_rating(problem_id):
   r = requests.get("https://open.kattis.com/problems/" + problem_id)
   # bad request
@@ -162,75 +154,64 @@ def get_problem_rating(problem_id):
   rating = search.split('>')[-1]
   return rating
 
-def get_problem_description(problem_id):
-  r = requests.get("https://open.kattis.com/problems/" + problem_id)
-  # bad request
-  if r.status_code != 200:
-    print("URL returned non 200 status")
+
+"""
+Opens a problem description in the default browser, either Chrome or Firefox
+
+Params: None
+Returns: None
+"""
+def show_description():
+  problem_id = os.path.basename(os.getcwd())
+  if problem_id not in problems_conf:
+    print("Invalid problem ID: %s" % problem_id)
     print("Aborting...")
     sys.exit(0)
-  soup = BeautifulSoup(r.content, "html.parser")
-  head = soup.find("div", {"class": "headline-wrapper"})
-  body = soup.find("div", {"class": "problembody"})
-  body_text = body.find_all(["p", "h2"])
-  res = [head.h1] + body_text
-  res = format_description(res)
-  return '\n\n'.join(res)
-
-def format_description(lines):
-  lines[0] = '#### ' + lines[0].text + ' ####'
-  for i in range(1, len(lines)):
-    line = lines[i]
-    if line.text == 'Input':
-      lines[i] = '#### Input ####'
-    elif line.text == 'Output':
-      lines[i] = '#### Output ####'
+  if "default_browser" not in user_conf:
+    set_default_browser()
+  platform = sys.platform
+  if platform == 'darwin':
+    call = ""
+    if user_conf["default_browser"] == "chrome":
+      call = "open -a '/Applications/Google Chrome.app' 'https://open.kattis.com/problems/" + problem_id + "'"
     else:
-      line = latex_to_text.translate(line.text)
-      lines[i] = ' '.join(line.split())
-  return lines
+      call = "open -a '/Applications/Firefox.app' 'https://open.kattis.com/problems/" + problem_id + "'"
+    os.system(call)
+  elif platform == 'linux':
+    call = ""
+    if user_conf["default_browser"] == "chrome":
+      call = os.system("which google-chrome")
+    else:
+      call = os.system("which firefox")
+    call += " 'https://open.kattis.com/problems/" + problem_id + "'"
+    if call.startswith("/"):
+      os.system(call)
+    else:
+      print("Unable to find valid binary for Chrome or Firefox")
+      print("Aborting...")
 
-def show_description(option):
-  try:
-    problem = os.path.basename(os.getcwd())
-    description = open(problem + ".description", mode="r")
-  except:
-    print("No valid description file found")
-    print("Aborting...")
-    sys.exit(0)
-  if option == "short":
-    for line in description:
-      if line.strip() == "#### Input ####":
-        break
-      print(line, end="")
-  elif option == "full":
-    for line in description:
-      print(line, end="")
-    print("\n")
-  elif option == "input":
-    print(description.readline())
-    start = False
-    for line in description:
-      if line.strip() == "#### Input ####":
-        start = True
-      if line.strip() == "#### Output ####":
-        break
-      if start:
-        print(line, end="")
-  elif option == "output":
-    print(description.readline())
-    start = False
-    for line in description:
-      if line.strip() == "#### Output ####":
-        start = True
-      if start:
-        print(line, end="")
-    print("\n")
+
+"""
+Sets the default web browser for displaying problem descriptions
+
+Params: None
+Returns: None
+"""
+def set_default_browser():
+  global modified
+  default = None
+  while True:
+    default = input("Set Chrome or Firefox as your default browser? ").lower()
+    if default in {"firefox", "chrome"}:
+      break
+  user_conf["default_browser"] = default
+  modified = True
+
 
 """
 Opens and writes basic boilerplate to a file based on file type
 
-Params: kattis problem id, file extension, problem rating
+Params: A string problem_id, a string extension, a string rating
 Returns: None
 """
 def write_boilerplate(problem_id, extension, rating):
@@ -307,7 +288,8 @@ if __name__ == "__main__":
 
 
 """
-Runs all the sample inputs for a given kattis problem and checks them for correctness
+Runs all the sample inputs for a given kattis problem and checks them for
+basic correctness (does not check relative error)
 
 Params: None
 Returns: None
@@ -318,26 +300,36 @@ def run():
   extension = get_source_extension(file_name)
   samples, answers = get_samples_and_answers()
   executable = run_compiler(file_name, extension)
-  if executable:
+  if executable is not None:
     if samples and answers:
       run_test_cases(executable, samples, answers)
     else:
       print("No sample inputs and answers found")
       print("Aborting...")
-      return
 
 
-def get_source_extension(problem):
+"""
+Helper function to find a problem's sorce file extension
+
+Params: A string problem_id
+Returns: None
+"""
+def get_source_extension(problem_id):
   for f in os.listdir():
     base, extension = os.path.splitext(os.path.basename(f))
-    if base == problem and extension in _extension_to_lang:
+    if base == problem_id and extension in _extension_to_lang:
       return extension
   print("No suitable source files found")
   print("Currently Supported Extensions: \".cpp\", \".java\", \".py\"")
   print("Aborting...")
-  sys.exit(0)
 
 
+"""
+Helper function to get sample inputs and outputs for comparison
+
+Params: None
+Returns: None
+"""
 def get_samples_and_answers():
   samples = []
   answers = []
@@ -354,8 +346,8 @@ def get_samples_and_answers():
 Helper function for run() method. Compiles the code for compiled languages and checks
 existence of interpreter for interpreted languages
 
-Params: source file
-Returns: a list of tokens for a system call to run the source code, or None on failure
+Params: A string file_name, a string extension
+Returns: A string representing a system call to run the source code, or None on failure
 """
 def run_compiler(file_name, extension):
   status = 1
@@ -369,8 +361,8 @@ def run_compiler(file_name, extension):
     # compile the code
     if verbose:
       print("Compiling %s..." % (file_name + extension))
-    os.system("g++ -std=c++11 %s" % file_name + extension)
-    return ["./a.out"]
+    os.system("g++ -std=c++11 %s" % (file_name + extension))
+    return "./a.out"
   if extension == ".java":
     # check existence of javac compiler
     status = os.system("which -s javac")
@@ -380,47 +372,50 @@ def run_compiler(file_name, extension):
       return None
     # compile the code
     if verbose:
-      print("Compiling %s..." % file_name + extension)
-    os.system("javac %s" % file_name + extension)
-    return ["java", file_name]
+      print("Compiling %s..." % (file_name + extension))
+    os.system("javac %s" % (file_name + extension))
+    return "java " + file_name
   if extension == ".py":
     if verbose:
       print("Trying to infer Python version...")
     version = determine_python_version(file_name + extension)
+    python_warning = (
+      "NOTE: Katti only uses the aliases 'python2' and 'python3' for python interpreters"
+      + "\nPlease make sure the appropriate aliases are in your PATH environment variable"
+      + "\nAborting..."
+    )
     if version == 2:
       status = os.system("which -s python2")
       if status != 0:
         print("Unable to locate Python 2 interpreter")
-        print("NOTE: Katti only uses the aliases \"python2\" and \"python3\" for python interpreters")
-        print("Please make sure the appropriate aliases are in your PATH environment variable")
-        print("Aborting...")
+        print(python_warning)
         return None
-      return ["python2", file_name + extension]
+      return "python2 " + file_name + extension
     else:
       status = os.system("which -s python3")
       if status != 0:
         print("Unable to locate Python 3 interpreter")
-        print("NOTE: Katti only uses the aliases \"python2\" and \"python3\" for python interpreters")
-        print("Please make sure the appropriate aliases are in your PATH environment variable")
-        print("Aborting...")
+        print(python_warning)
         return None
-      return ["python3", file_name + extension]
+      return "python3 " + file_name + extension
 
 
 """
 Runs a given kattis problem through the provided sample inputs - assumes
 code is already compiled
 
-Params: list of sample input files, list of expected output files
+Params: A command line string executable, a list of sample input files,
+        a list of expected output files
 Returns: None
 """
 def run_test_cases(executable, sample_files, expected):
   print("Running test cases...")
   for i, sample in enumerate(sample_files):
     fail = False
+    # get rid of .in extension in order to match with corresponding .ans file
     base = '.'.join(sample.split('.')[:-1])
-    executable.extend(["<", sample, ">", "test.out"])
-    os.system(' '.join(executable))
+    executable += " < " +  sample + " > test.out"
+    os.system(executable)
     status = os.system("cmp test.out %s.ans" % base)
     if status != 0:
       if verbose:
@@ -442,14 +437,15 @@ def run_test_cases(executable, sample_files, expected):
         print("+", end="")
   os.system("rm *.out 2>/dev/null")
   os.system("rm *.class 2>/dev/null")
+  # formatting
   print()
 
 
 """
 Scans a python file for tokens exclusive to python 2 to infer the python version
 
-Params: a file name to scan
-Returns: an integer version of python
+Params: A file name to scan
+Returns: An integer version of python
 """
 def determine_python_version(file_name):
   with open(file_name, mode="r") as f:
@@ -465,10 +461,10 @@ def determine_python_version(file_name):
           print("Python 2 inferred\n")
         return 2
     f.close()
-    if verbose:
-      print("No tokens exclusive to Python 2 found")
-      print("Python 3 inferred\n")
-    return 3
+  if verbose:
+    print("No tokens exclusive to Python 2 found")
+    print("Python 3 inferred\n")
+  return 3
 
 
 """
@@ -479,28 +475,29 @@ Returns: None
 """
 def post():
   config = get_config()
-  problem = os.path.basename(os.getcwd())
-  extension = get_source_extension(problem)
+  problem_id = os.path.basename(os.getcwd())
+  extension = get_source_extension(problem_id)
   lang = _extension_to_lang.get(extension)
-  mainclass = problem if extension == ".java" else None
-
+  # only needed for Java submissions
+  mainclass = problem_id if extension == ".java" else None
+  # language to submit as
   if lang == "Python":
-    version = determine_python_version(problem + extension)
+    version = determine_python_version(problem_id + extension)
     lang = "Python " + str(version)
-
-  submission_files = [problem + extension]
+  # list of files to submit
+  submission_files = [problem_id + extension]
   try:
     login_response = login(config)
   except requests.exceptions.RequestException as e:
     print("Login Connection Failed:", e)
     sys.exit(0)
   report_login_status(login_response)
-  confirm_submission(problem, lang, submission_files, mainclass)
-
+  confirm_submission(problem_id, lang, submission_files)
+  # try post call
   try:
     submit_response = submit(
       login_response.cookies,
-      problem,
+      problem_id,
       lang,
       submission_files,
       mainclass
@@ -509,23 +506,31 @@ def post():
     print("Submit Connection Failed:", e)
     sys.exit(0)
   report_submission_status(submit_response)
-
+  # print submission id message
   plain_text_response = submit_response.content.decode("utf-8").replace("<br />", "\n")
   print(plain_text_response)
-
+  # check the submission acceptance status
   submission_id = plain_text_response.split()[-1].rstrip(".")
-  check_submission_status(problem + extension, submission_id)
+  check_submission_status(problem_id + extension, submission_id)
 
 
+"""
+Checks the status of a given submission for acceptance, TLE, etc.
+
+Params: A string submission_file, a string submission_id
+Returns: None
+"""
 def check_submission_status(submission_file, submission_id):
   global modified
   print("Awaiting result...\n")
   config = get_config()
+  # login
   try:
     login_response = login(config)
   except requests.exceptions.RequestException as e:
     print("Login Connection Failed:", e)
     sys.exit(0)
+  # limit number of http requests for a submissions status
   i = 0
   while i < MAX_SUBMISSION_CHECKS:
     response = requests.get(
@@ -533,13 +538,16 @@ def check_submission_status(submission_file, submission_id):
       cookies=login_response.cookies,
       headers=_HEADERS
     )
+    # parse html for accepted test cases
     soup = BeautifulSoup(response.content, "html.parser")
     status = soup.find("td", class_=re.compile("status"))
     if status:
       status = set(status["class"])
       runtime = soup.find("td", class_=re.compile("runtime"))
+      # success
       if "accepted" in status:
         accepted = soup.find_all("span", class_=re.compile("accepted"))
+        # limit length of output
         if len(accepted) > 47:
           print("Test Cases: "
                 + ("+" * 47)
@@ -551,22 +559,24 @@ def check_submission_status(submission_file, submission_id):
           print("Test Cases: " + ("+" * len(accepted)))
         print("PASSED")
         print("Runtime: %s" % runtime.text)
+        # insert problem into solved section of conf file in sorted order
         bin_search_index = bisect(user_conf["solved"], submission_file)
-        if bin_search_index == 0:
-          user_conf["solved"].insert(0, submission_file)
-        elif user_conf["solved"][bin_search_index-1] != submission_file:
+        if user_conf["solved"][bin_search_index-1] != submission_file:
           user_conf["solved"].insert(bin_search_index, submission_file)
         modified = True
         break
+      # failure
       elif "rejected" in status:
         accepted = soup.find_all("span", class_=re.compile("accepted"))
         reason = soup.find("span", class_="rejected")
         cases = soup.find_all("span", title=re.compile("Test case"))
         num_cases = 0
+        # find how many test cases passed and which one failed
         if cases:
           num_cases = cases[0]["title"]
           num_cases = re.findall("[0-9]+/[0-9]+", num_cases)
           num_cases = num_cases[0].split("/")[-1]
+          # limit output length
           if len(accepted) > 46:
             print("Test Cases: " + ("+" * 44) + "...")
           else:
@@ -579,8 +589,10 @@ def check_submission_status(submission_file, submission_id):
           print("Failed Test Case: %i/%s" % (len(accepted)+1, num_cases))
         print("Runtime: %s" % runtime.text)
         break
+      # still running
       else:
         accepted = soup.find_all("span", class_=re.compile("accepted"))
+        # update output
         if len(accepted) > 47:
           print("Test Cases: "
                 + ("+" * 47)
@@ -592,20 +604,29 @@ def check_submission_status(submission_file, submission_id):
           print("Test Cases: " + ("+" * len(accepted)), end='\r')
         time.sleep(0.5)
         i += 1
+  # add to submission history
   dt = str(datetime.now()).split(".")[0]
   user_conf["history"].insert(0, dt + " " + submission_file)
+  # truncate submission history to user config history size
   while len(user_conf["history"]) > user_conf["history_size"]:
     user_conf["history"].pop()
   modified = True
 
 
-def submit(cookies, problem, lang, files, mainclass=""):
+"""
+Helper function to post a solution to kattis
+
+Params: A requests cookies object for login, a string problem_id,
+        a string lang, a list files, a string mainclass
+Returns: A post request object
+"""
+def submit(cookies, problem_id, lang, files, mainclass=""):
   data = {
     "submit": "true",
     "submit_ctr": 2,
     "language": lang,
     "mainclass": mainclass,
-    "problem": problem,
+    "problem": problem_id,
     "tag": "",
     "script": "true"
   }
@@ -624,9 +645,16 @@ def submit(cookies, problem, lang, files, mainclass=""):
       )
   return requests.post(_SUBMIT_URL, data=data, files=submission_files, cookies=cookies, headers=_HEADERS)
 
-def confirm_submission(problem, lang, files, mainclass):
+
+"""
+A confirmation message for submissions if verbose is set
+
+Params: A string problem_id, a string lang, a list files
+Returns: None
+"""
+def confirm_submission(problem_id, lang, files):
   if verbose:
-    print("Problem:", problem)
+    print("Problem:", problem_id)
     print("Language:", lang)
     print("Files:", ", ".join(files))
     print("Submit (Y/N): ", end="")
@@ -636,6 +664,12 @@ def confirm_submission(problem, lang, files, mainclass):
     print()
 
 
+"""
+A status message for the login function
+
+Params: A requests object response
+Returns: None
+"""
 def report_login_status(response):
   status = response.status_code
   if status == 200 and verbose:
@@ -653,6 +687,12 @@ def report_login_status(response):
     sys.exit(0)
 
 
+"""
+A status message for a problem submission
+
+Params: A requests object response
+Returns: None
+"""
 def report_submission_status(response):
   status = response.status_code
   if status == 200 and verbose:
@@ -670,6 +710,12 @@ def report_submission_status(response):
     sys.exit(0)
 
 
+"""
+A helper function to load a users kattis rc file
+
+Params: None
+Returns: A ConfigParser object
+"""
 def get_config():
   config = configparser.ConfigParser()
   if not config.read([os.path.join(os.getenv("HOME"), ".kattisrc")]):
@@ -680,6 +726,12 @@ def get_config():
   return config
 
 
+"""
+A helper functiont to log a user in to kattis
+
+Params: A ConfigParser object config
+Returns: A requests object
+"""
 def login(config):
   username, token = parse_config(config)
   login_creds = {
@@ -691,10 +743,11 @@ def login(config):
 
 
 """
-Helper function for login. Parses a config file for username and submit token. On failure to parse config file, exits control flow
+Helper function for login. Parses a config file for username and submit token.
+On failure to parse config file, exits control flow
 
-Params: a config parser object
-Returns: a tuple of username and token
+Params: A ConfigParser object
+Returns: A tuple of username and token
 """
 def parse_config(config):
   username = config.get("user", "username")
@@ -711,19 +764,25 @@ def parse_config(config):
   return (username, token)
 
 
+"""
+A helper function to print a users submission stats
+
+Params: None
+Returns: None
+"""
 def get_stats():
   if len(user_conf["solved"]) == 0:
     print("You haven't solved any problems yet!")
     return
   solved = user_conf["solved"]
-
+  # last updated
   prev_update = datetime.strptime(user_conf["ids_last_updated"], "%Y-%m-%d %H:%M:%S.%f")
-  td = datetime.now() - prev_update
+  current = datetime.now()
   # 3600 seconds in hour - no hours field
-  hours = td.seconds // 3600
-  if hours >= ratings_update_period:
+  hours = (current - prev_update).total_seconds() / 3600
+  if hours >= user_conf["ratings_update_period"]:
     get_updated_ratings()
-
+  # temporary record for various stats tracked
   stats = {
     "cpp": {
       "freq": 0,
@@ -749,17 +808,16 @@ def get_stats():
     stats[ext]["ratings"].append(problems_conf[problem_id])
     if problems_conf[problem_id] > stats[ext]["pr"][1]:
       stats[ext]["pr"] = (problem_id, problems_conf[problem_id])
-
+  # for getting averages and personal bests (language specific)
   cpp_num, cpp_denom = sum(stats["cpp"]["ratings"]), len(stats["cpp"]["ratings"])
   java_num, java_denom = sum(stats["java"]["ratings"]), len(stats["java"]["ratings"])
   py_num, py_denom = sum(stats["py"]["ratings"]), len(stats["py"]["ratings"])
   cpp_avg, cpp_pr = cpp_num / cpp_denom, stats["cpp"]["pr"]
   java_avg, java_pr = java_num / java_denom, stats["java"]["pr"]
   py_avg, py_pr = py_num / py_denom, stats["py"]["pr"]
-
+  # total stats
   total_num, total_denom = (cpp_num + java_num + py_num), (cpp_denom + java_denom + py_denom)
   avg, pr = total_num / total_denom, max(cpp_pr, java_pr, py_pr, key=lambda x: x[1])
-
   print()
   print("|  LANGUAGE  |   SOLVED   | AVG RATING |               PR               |")
   print("-------------------------------------------------------------------------")
@@ -770,14 +828,25 @@ def get_stats():
   print("| TOTAL      | %10i | %10.2f | %-26s %3.1f |" % (total_denom, avg, pr[0], pr[1]))
 
 
+"""
+Helper to get floating point problem rating rather than string
+
+Params: A string problem_id
+Returns: A float representing the rating
+"""
 def get_numeric_rating(problem_id):
   return float(get_problem_rating(problem_id))
 
 
+"""
+Gets up to date problem ratings with multiprocessed calls to kattis
+"""
 def get_updated_ratings():
   global modified
+  # updated values
   user_conf["ids_last_updated"] = str(datetime.now())
   ordered_keys = list(problems_conf.keys())
+  # can tinker with this value if needed
   pool = mp.Pool(processes=128)
   print("Getting up-to-date problem ratings...")
   for i, val in enumerate(pool.imap(get_numeric_rating, ordered_keys)):
@@ -789,6 +858,12 @@ def get_updated_ratings():
   modified = True
 
 
+"""
+Displays uses submission history
+
+Params: None
+Returns: None
+"""
 def get_history():
   if len(user_conf["history"]) == 0:
     if user_conf["history_size"] == 0:
@@ -805,6 +880,12 @@ def get_history():
   print()
 
 
+"""
+Sets a users submission history size
+
+Params: An int size
+Returns: None
+"""
 def set_history_size(size):
   global modified
   if size < user_conf["history_size"]:
@@ -822,10 +903,22 @@ def set_history_size(size):
   modified = True
 
 
+"""
+Shows a users history size
+
+Params: None
+Returns: None
+"""
 def get_history_size():
   print(user_conf["history_size"])
 
 
+"""
+A helper functiont to validate history size, if -1 simply shows history size
+
+Params: An int size
+Returns: None
+"""
 def handle_history_size(size):
   arg_size = None
   try:
@@ -843,6 +936,12 @@ def handle_history_size(size):
       set_history_size(arg_size)
 
 
+"""
+Gets a random kattis problem within a range, [rating, rating + 0.9]
+
+Params: An int rating
+Returns: None
+"""
 def get_random(rating):
   global modified
   invalid = False
@@ -854,14 +953,14 @@ def get_random(rating):
     print("Invalid rating. Rating must be a valid integer between 1 and 10")
     print("Aborting...")
     sys.exit(0)
-
+  # update ratings if necessary
   prev_update = datetime.strptime(user_conf["ids_last_updated"], "%Y-%m-%d %H:%M:%S.%f")
   current = datetime.now()
   # 3600 seconds in hour - no hours field
   hours = (current - prev_update).total_seconds() / 3600
-  if hours >= ratings_update_period:
+  if hours >= user_conf["ratings_update_period"]:
     get_updated_ratings()
-
+  # will hold all unsolved problems within the range
   choices = set()
   solved = set([i.split(".")[0] for i in user_conf["solved"]])
   for problem, val in problems_conf.items():
@@ -875,6 +974,13 @@ def get_random(rating):
     return
   print("It appears you have solved all problems rated %.1f - %.1f" % (rating, rating + 0.9))
 
+
+"""
+Set how frequently ratings will be updated
+
+Params: An int period
+Returns: None
+"""
 def set_update_period(period):
   global user_conf, modified
   invalid = False
@@ -890,13 +996,20 @@ def set_update_period(period):
   user_conf["ratings_update_period"] = period
   modified = True
 
+
+"""
+Display the kattis usage message
+
+Params: None
+Returns: a string representing the usage message
+"""
 def usage_msg():
   return "katti [-g <problem-id>] [-r] [-p] [-h] [-v]"
 
 
 def main():
-  global verbose, user_conf, problems_conf, ratings_update_period
-  # load conf files
+  global verbose, user_conf, problems_conf
+  # load or create conf files if they dont exist
   if os.path.exists(USER_CONF_PATH):
     user_conf = json.load(open(USER_CONF_PATH))
   else:
@@ -907,6 +1020,7 @@ def main():
       "ids_last_updated": str(datetime.now()),
       "ratings_update_period": 72
     }
+  # should have been downloaded with katti
   if os.path.exists(PROBLEMS_CONF_PATH):
     problems_conf = json.load(open(PROBLEMS_CONF_PATH))
   else:
@@ -914,8 +1028,6 @@ def main():
     print("Please download and install a new one at https://github.com/andrewjmcgehee/kattis")
     print("Aborting...")
     sys.exit(0)
-  ratings_update_period = user_conf["ratings_update_period"]
-
   # add command line args
   arg_parser = Parser(usage=usage_msg())
   arg_parser.add_argument(
@@ -929,19 +1041,17 @@ def main():
   arg_parser.add_argument("-r", "--run", help="run the test cases for a given problem", action="store_true")
   arg_parser.add_argument("-p", "--post", help="submit a kattis problem", action="store_true")
   arg_parser.add_argument("-v", "--verbose", help="receive verbose outputs", action="store_true")
-  arg_parser.add_argument("-d", "--short_description", help="display a problem's description only", action="store_true")
-  arg_parser.add_argument("-D", "--full_description", help="display a problem's description, input, and output specs", action="store_true")
-  arg_parser.add_argument("-i", "--input", help="display a problem's input specs", action="store_true")
-  arg_parser.add_argument("-o", "--output", help="display a problem's output specs", action="store_true")
+  arg_parser.add_argument("-d", "--description", help="display a problem's description in chrome", action="store_true")
+  arg_parser.add_argument("-b", "--default_browser", help="set the default browser to show problem descriptions", action="store_true")
   arg_parser.add_argument("--random", help="get a random kattis problem with a given rating")
   arg_parser.add_argument("--stats", help="get kattis stats if possible", action="store_true")
   arg_parser.add_argument("--history", help="see your 50 most recent kattis submissions", action="store_true")
   arg_parser.add_argument("--history_size", metavar="<size>", help="set history size with a number and query history size with -1")
   arg_parser.add_argument("--update_period", metavar="<hours>", help="set how frequently katti updates problem ratings in hours")
   args = arg_parser.parse_args()
-
+  # track verbosity
   verbose = args.verbose
-
+  # handle args passed in
   if args.get:
     get(args.get)
   elif args.random:
@@ -950,14 +1060,10 @@ def main():
     run()
   elif args.post:
     post()
-  elif args.short_description:
-    show_description("short")
-  elif args.full_description:
-    show_description("full")
-  elif args.input:
-    show_description("input")
-  elif args.output:
-    show_description("output")
+  elif args.default_browser:
+    set_default_browser()
+  elif args.description:
+    show_description()
   elif args.stats:
     get_stats()
   elif args.history:
@@ -968,7 +1074,7 @@ def main():
     set_update_period(args.update_period)
   else:
     print("usage:", usage_msg())
-
+  # update conf files if needed
   if modified:
     with open(USER_CONF_PATH, mode="w") as f:
       f.write(json.dumps(user_conf))
