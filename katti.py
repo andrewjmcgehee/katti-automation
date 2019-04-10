@@ -1043,7 +1043,7 @@ def main():
   arg_parser.add_argument("-v", "--verbose", help="receive verbose outputs", action="store_true")
   arg_parser.add_argument("-d", "--description", help="display a problem's description in chrome", action="store_true")
   arg_parser.add_argument("-b", "--default_browser", help="set the default browser to show problem descriptions", action="store_true")
-  arg_parser.add_argument("--random", help="get a random kattis problem with a given rating")
+  arg_parser.add_argument("--random", metavar="<rating>", help="get a random kattis problem with a given rating")
   arg_parser.add_argument("--stats", help="get kattis stats if possible", action="store_true")
   arg_parser.add_argument("--history", help="see your 50 most recent kattis submissions", action="store_true")
   arg_parser.add_argument("--history_size", metavar="<size>", help="set history size with a number and query history size with -1")
