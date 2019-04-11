@@ -21,7 +21,7 @@ $ mv .kattisrc $HOME
 ```
 **3. Run the katti installer script:**
 ```
-$ python3 installer.py
+$ sudo python3 installer.py
 ```
 
 Please note that katti is installed to `/usr/local/opt/katti.py`, writes a shell script to `/usr/local/bin/katti`, and stores its config files
@@ -33,5 +33,5 @@ If you would like zsh or oh-my-zsh to complete katti's options for you, replace 
 Otherwise it is safe to discard the `_katti` file.
 
 ```
-$ python3 installer.py --zsh
+$ sudo python3 installer.py --zsh
 ```
