@@ -103,7 +103,7 @@ def get(problem_id):
   r = requests.get("https://open.kattis.com/problems/" + problem_id + "/file/statement/samples.zip")
   # bad request
   if r.status_code != 200:
-    print("URL returned non 200 status")
+    print("URL <{}> returned non 200 status".format(r.url))
     print("Aborting...")
     sys.exit(0)
   # download and write zip file
@@ -147,7 +147,7 @@ def get_problem_rating(problem_id):
   r = requests.get("https://open.kattis.com/problems/" + problem_id)
   # bad request
   if r.status_code != 200:
-    print("URL returned non 200 status")
+    print("URL <{}> returned non 200 status".format(r.url))
     print("Aborting...")
     sys.exit(0)
   search = re.findall("Difficulty:[ </>a-z]*[0-9]\.[0-9]", r.text)[0]
