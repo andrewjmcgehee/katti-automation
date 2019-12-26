@@ -1,9 +1,8 @@
 ## Conventions:
 All kattis solutions are named by their problem id on kattis and are enclosed in a directory by that name. If they have sample inputs
-or expected outputs those will be included in the directory. All files that are not enclosed in a directory are some kind of code
-snippet which I find helpful or interesting.
+or expected outputs those will be included in the directory.
 
-NOTE: Ratings listed in solutions are tentative. They constantly change and update as new submissions are made.
+NOTE: Ratings listed in JSON are tentative. They constantly change and update as Katti (specifically the "stats" option) is run.
 
 # Installation of Katti Automation (Mac / Linux)
 
