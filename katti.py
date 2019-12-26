@@ -169,27 +169,27 @@ def show_description():
     sys.exit(0)
   if "default_browser" not in user_conf:
     set_default_browser()
-  platform = sys.platform
-  if platform == 'darwin':
-    call = ""
-    if user_conf["default_browser"] == "chrome":
-      call = "open -a '/Applications/Google Chrome.app' 'https://open.kattis.com/problems/" + problem_id + "'"
-    else:
-      call = "open -a '/Applications/Firefox.app' 'https://open.kattis.com/problems/" + problem_id + "'"
-    os.system(call)
-  elif platform == 'linux':
-    call = ""
-    if user_conf["default_browser"] == "chrome":
-      call = os.system("which google-chrome")
-    else:
-      call = os.system("which firefox")
-    call += " 'https://open.kattis.com/problems/" + problem_id + "'"
-    if call.startswith("/"):
+  if input('Open in browser? (Y/N): ').lower() in {'y', 'yes'}:
+    platform = sys.platform
+    if platform == 'darwin':
+      call = ""
+      if user_conf["default_browser"] == "chrome":
+        call = "open -a '/Applications/Google Chrome.app' 'https://open.kattis.com/problems/" + problem_id + "'"
+      else:
+        call = "open -a '/Applications/Firefox.app' 'https://open.kattis.com/problems/" + problem_id + "'"
       os.system(call)
-    else:
-      print("Unable to find valid binary for Chrome or Firefox")
-      print("Aborting...")
-
+    elif platform == 'linux':
+      call = ""
+      if user_conf["default_browser"] == "chrome":
+        call = os.system("which google-chrome")
+      else:
+        call = os.system("which firefox")
+      call += " 'https://open.kattis.com/problems/" + problem_id + "'"
+      if call.startswith("/"):
+        os.system(call)
+      else:
+        print("Unable to find valid binary for Chrome or Firefox")
+        print("Aborting...")
 
 """
 Sets the default web browser for displaying problem descriptions
@@ -542,7 +542,8 @@ def check_submission_status(submission_file, submission_id):
     soup = BeautifulSoup(response.content, "html.parser")
     status = soup.find("td", class_=re.compile("status"))
     if status:
-      status = set(status["class"])
+      child = status.findChildren("span")[0]
+      status = set(child["class"])
       runtime = soup.find("td", class_=re.compile("runtime"))
       # success
       if "accepted" in status:
