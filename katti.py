@@ -149,7 +149,7 @@ Adds a problem id to problems conf file
 def add(problem_id):
   global problems_conf
   rating = get_problem_rating(problem_id)
-  problems_conf[problem_id] = rating
+  problems_conf[problem_id] = float(rating)
   with open(PROBLEMS_CONF_PATH, 'w') as f:
     f.write(json.dumps(problems_conf))
 
