@@ -76,10 +76,82 @@ user_conf = None
 problems_conf = None
 USER_CONF_PATH = "/usr/local/etc/katti/config.json"
 PROBLEMS_CONF_PATH = "/usr/local/etc/katti/problem_ids.json"
+HOME = os.path.expanduser('~')
+ZSH_COMP_PATH = os.path.join(HOME, ".config/zsh/custom_completions/_katti")
 
 # user conf or problems conf modified
 modified = False
 
+def update_zsh_completions():
+  with open(ZSH_COMP_PATH, 'w') as f:
+    f.write(
+"""
+#compdef katti
+
+typeset -A opt_args
+
+_arguments -C \
+  '1: :->cmds' \
+  '2: :->get_ids' \
+  '*:: :->args' \
+&& ret=0
+
+case "$state" in
+  (cmds)
+    local commands
+    commands=(
+      "-h:show help"
+      "--help:show help"
+      "-g:get problem by id"
+      "--get:get problem by id"
+      "-r:run test cases on sample inputs"
+      "--run:run test cases on sample inputs"
+      "-p:submit solution to kattis"
+      "--post:submit solution to kattis"
+      "-v:set verbose"
+      "--verbose:set verbose"
+      "-d:display a problem's description in the default browser"
+      "--description:display a problem's description in the default browser"
+      "-b:set the default browser"
+      "--default_browser:set the default browser"
+      "--random:get a random problem with a given rating"
+      "--stats:display solution stats"
+      "--history:display submission history"
+      "--history_size:set or query submission history size"
+      "--update_period:set how frequently katti updates problem ratings in hours"
+      "--update_zsh_completions:update katti completions for zsh users"
+    )
+    _describe -t commands "command" commands && ret=0
+  ;;
+  (get_ids)
+    case $line[1] in
+      (-g|--get)
+        local ids
+        ids=(
+""")
+    for k in sorted(problems_conf.keys()):
+      f.write(' ' * 10 + "\"" + k + "\"\n")
+    f.write(' ' * 8 + ')')
+    f.write(
+"""
+        _describe -t ids "id" ids && ret=0
+      ;;
+    esac
+  ;;
+esac
+
+return 1
+""")
+
+'''
+Adds a problem id to problems conf file
+'''
+def add(problem_id):
+  global problems_conf
+  rating = get_problem_rating(problem_id)
+  problems_conf[problem_id] = rating
+  with open(PROBLEMS_CONF_PATH, 'w') as f:
+    f.write(json.dumps(problems_conf))
 
 """
 Gets the a problem's rating and sample inputs from kattis
@@ -1026,7 +1098,7 @@ def main():
     problems_conf = json.load(open(PROBLEMS_CONF_PATH))
   else:
     print("Your problem ids JSON file appears to be corrupted")
-    print("Please download and install a new one at https://github.com/andrewjmcgehee/kattis")
+    print("Please download and install a new one at https://github.com/andrewjmcgehee/katti-automation")
     print("Aborting...")
     sys.exit(0)
   # add command line args
@@ -1044,11 +1116,13 @@ def main():
   arg_parser.add_argument("-v", "--verbose", help="receive verbose outputs", action="store_true")
   arg_parser.add_argument("-d", "--description", help="display a problem's description in chrome", action="store_true")
   arg_parser.add_argument("-b", "--default_browser", help="set the default browser to show problem descriptions", action="store_true")
+  arg_parser.add_argument("--add", metavar="<problem_id", help="add a problem id to your problem config file")
   arg_parser.add_argument("--random", metavar="<rating>", help="get a random kattis problem with a given rating")
   arg_parser.add_argument("--stats", help="get kattis stats if possible", action="store_true")
   arg_parser.add_argument("--history", help="see your 50 most recent kattis submissions", action="store_true")
   arg_parser.add_argument("--history_size", metavar="<size>", help="set history size with a number and query history size with -1")
   arg_parser.add_argument("--update_period", metavar="<hours>", help="set how frequently katti updates problem ratings in hours")
+  arg_parser.add_argument("--update_zsh_completions", help="update katti completions for zsh users", action="store_true")
   args = arg_parser.parse_args()
   # track verbosity
   verbose = args.verbose
@@ -1061,6 +1135,8 @@ def main():
     run()
   elif args.post:
     post()
+  elif args.add:
+    add(args.add)
   elif args.default_browser:
     set_default_browser()
   elif args.description:
@@ -1073,6 +1149,8 @@ def main():
     handle_history_size(args.history_size)
   elif args.update_period:
     set_update_period(args.update_period)
+  elif args.update_zsh_completions:
+    update_zsh_completions()
   else:
     print("usage:", usage_msg())
   # update conf files if needed
