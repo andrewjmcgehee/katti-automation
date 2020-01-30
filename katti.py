@@ -85,15 +85,14 @@ modified = False
 def update_zsh_completions():
   with open(ZSH_COMP_PATH, 'w') as f:
     f.write(
-"""
-#compdef katti
+"""#compdef katti
 
 typeset -A opt_args
 
-_arguments -C \
-  '1: :->cmds' \
-  '2: :->get_ids' \
-  '*:: :->args' \
+_arguments -C \\
+  '1: :->cmds' \\
+  '2: :->get_ids' \\
+  '*:: :->args' \\
 && ret=0
 
 case "$state" in
@@ -114,6 +113,7 @@ case "$state" in
       "--description:display a problem's description in the default browser"
       "-b:set the default browser"
       "--default_browser:set the default browser"
+      "--add:add problem to katti problem bank by id"
       "--random:get a random problem with a given rating"
       "--stats:display solution stats"
       "--history:display submission history"
